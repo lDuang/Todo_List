@@ -1,6 +1,9 @@
-import 'dotenv/config'; // Load environment variables from .env file
 import { serve } from '@hono/node-server';
 import { Hono } from 'hono';
+if (process.env.NODE_ENV !== 'production') {
+  const dotenv = await import('dotenv');
+  dotenv.config();
+}
 import { cors } from 'hono/cors';
 import { zValidator } from '@hono/zod-validator';
 import { z } from 'zod';

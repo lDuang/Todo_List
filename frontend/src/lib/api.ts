@@ -9,7 +9,7 @@ const todoSchema = z.object({
 
 export type Todo = z.infer<typeof todoSchema>;
 
-const API_BASE_URL = 'http://localhost:8000/api'; // 后端 Hono 服务器地址
+const API_BASE_URL = `${import.meta.env.VITE_API_BASE_URL}/api`;
 
 export async function getTodos(): Promise<Todo[]> {
   const response = await fetch(`${API_BASE_URL}/todos`);
