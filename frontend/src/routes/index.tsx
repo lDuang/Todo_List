@@ -1,18 +1,13 @@
+import { useState } from 'react';
 import { createFileRoute } from '@tanstack/react-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getTodos, createTodo, updateTodo, deleteTodo, Todo } from '@/lib/api';
 import { TodosList } from '@/components/todos-list';
-import { Input } from '@/components/ui/input';
-import { Button } from '@/components/ui/button';
-import { useForm } from 'react-hook-form';
-import { z } from 'zod';
-import { zodResolver } from '@hookform/resolvers/zod';
+import { AddTodoForm } from '@/components/add-todo-form';
 
-const todoFormSchema = z.object({
-  title: z.string().min(1, '标题不能为空'),
-});
-
-type TodoFormValues = z.infer<typeof todoFormSchema>;
+interface TodoFormValues {
+  title: string;
+}
 
 export const Route = createFileRoute('/')({
   component: Index,
@@ -21,89 +16,131 @@ export const Route = createFileRoute('/')({
 function Index() {
   const queryClient = useQueryClient();
 
-  const { data: todos, isLoading, isError } = useQuery<Todo[]>({
+  const { data: todos, isLoading, isError, error: queryError } = useQuery<Todo[]>({
     queryKey: ['todos'],
     queryFn: getTodos,
   });
 
-  const createTodoMutation = useMutation({
-    mutationFn: createTodo,
+  const [apiError, setApiError] = useState<string | null>(null);
+
+  const mutationOptions = {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['todos'] });
-      form.reset();
+      setApiError(null);
     },
+    onError: async (error: unknown) => {
+      let errorMessage = '操作失败，请稍后重试。';
+      if (error instanceof Response) {
+        try {
+          const errorData = await error.json();
+          errorMessage = errorData.message || errorData.error || errorMessage;
+        } catch (e) {
+          // JSON parsing failed
+        }
+      }
+      setApiError(errorMessage);
+    },
+  };
+
+  const createTodoMutation = useMutation<Todo, Error, string>({
+    mutationFn: createTodo,
+    ...mutationOptions,
   });
 
   const updateTodoMutation = useMutation({
     mutationFn: ({ id, updates }: { id: number; updates: Partial<Todo> }) => updateTodo(id, updates),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['todos'] });
-    },
+    ...mutationOptions,
   });
 
   const deleteTodoMutation = useMutation({
     mutationFn: deleteTodo,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['todos'] });
-    },
+    ...mutationOptions,
   });
 
-  const form = useForm<TodoFormValues>({
-    resolver: zodResolver(todoFormSchema),
-    defaultValues: {
-      title: '',
-    },
-  });
+  const onSubmit = async (values: TodoFormValues, form: any) => {
+    await queryClient.cancelQueries({ queryKey: ['todos'] });
 
-  const onSubmit = (values: TodoFormValues) => {
-    createTodoMutation.mutate(values.title);
+    const previousTodos = queryClient.getQueryData<Todo[]>(['todos']);
+
+    queryClient.setQueryData<Todo[]>(['todos'], (old) => [
+      ...(old || []),
+      {
+        id: Date.now(),
+        title: values.title,
+        completed: false,
+        createdAt: new Date().toISOString(),
+      },
+    ]);
+
+    form.reset();
+
+    try {
+      await createTodoMutation.mutateAsync(values.title);
+    } catch (err) {
+      queryClient.setQueryData(['todos'], previousTodos);
+    }
   };
 
-  const handleToggleComplete = (id: number, completed: boolean) => {
-    updateTodoMutation.mutate({ id, updates: { completed } });
+  const handleToggleComplete = async (id: number, completed: boolean) => {
+    await queryClient.cancelQueries({ queryKey: ['todos'] });
+
+    const previousTodos = queryClient.getQueryData<Todo[]>(['todos']);
+
+    queryClient.setQueryData<Todo[]>(['todos'], (old) =>
+      old?.map((todo) => (todo.id === id ? { ...todo, completed } : todo))
+    );
+
+    try {
+      await updateTodoMutation.mutateAsync({ id, updates: { completed } });
+    } catch (err) {
+      queryClient.setQueryData(['todos'], previousTodos);
+    }
   };
 
-  const handleDelete = (id: number) => {
-    deleteTodoMutation.mutate(id);
+  const handleDelete = async (id: number) => {
+    await queryClient.cancelQueries({ queryKey: ['todos'] });
+
+    const previousTodos = queryClient.getQueryData<Todo[]>(['todos']);
+
+    queryClient.setQueryData<Todo[]>(['todos'], (old) =>
+      old?.filter((todo) => todo.id !== id)
+    );
+
+    try {
+      await deleteTodoMutation.mutateAsync(id);
+    } catch (err) {
+      queryClient.setQueryData(['todos'], previousTodos);
+    }
   };
 
-  if (isLoading) return <div className="text-center p-4 text-2xl font-semibold text-gray-700">加载待办事项中...</div>;
-  if (isError) return <div className="text-center p-4 text-2xl font-semibold text-red-600">加载待办事项失败。</div>;
+  const handleEdit = (id: number, newTitle: string) => {
+    updateTodoMutation.mutate({ id, updates: { title: newTitle } });
+  };
 
   return (
-    <div className="flex flex-col items-center w-full">
-      <div className="w-full mb-20">
-             <h1 className="text-8xl font-extrabold text-center text-slate-800 tracking-tight leading-none mb-20">
-               待办事项清单
-             </h1>
-           </div>
-           <div className="w-full mb-24 flex flex-col items-center">
-             <form onSubmit={form.handleSubmit(onSubmit)} className="flex w-2/3 space-x-6">
-               <Input
-                 {...form.register('title')}
-                 placeholder="添加新的待办事项..."
-                 className="flex-1 border-slate-300 focus:ring-2 focus:ring-slate-400 text-slate-700 text-3xl py-6 px-8 rounded-2xl shadow-sm"
-                 disabled={createTodoMutation.isPending}
-               />
-               <Button
-                 type="submit"
-                 disabled={createTodoMutation.isPending}
-                 className="bg-slate-800 hover:bg-slate-900 text-white font-bold text-3xl py-6 px-12 rounded-2xl transition-transform transform hover:scale-105 shadow-sm"
-               >
-                 {createTodoMutation.isPending ? '添加中...' : '添加'}
-               </Button>
-             </form>
-             {form.formState.errors.title && (
-               <p className="text-red-500 text-2xl mt-8 text-center">{form.formState.errors.title.message}</p>
-             )}
-           </div>
-           <div className="w-2/3">
-             <TodosList
-               todos={todos || []}
-               onToggleComplete={handleToggleComplete}
-               onDelete={handleDelete}
-             />
-           </div>
-         </div>
+    <div className="container mx-auto max-w-5xl px-4 py-12">
+        <h1 className="text-4xl font-bold text-gray-800 text-center mb-8">今日任务</h1>
+
+        <div className="max-w-2xl mx-auto">
+            <AddTodoForm onSubmit={onSubmit} isPending={createTodoMutation.isPending} />
+
+            {isLoading ? (
+                <div className="text-center text-gray-500 py-4">加载中...</div>
+            ) : isError ? (
+                <div className="text-center text-red-500 py-4">加载任务失败: {queryError?.message}</div>
+            ) : (
+                <TodosList
+                todos={todos || []}
+                onToggleComplete={handleToggleComplete}
+                onDelete={handleDelete}
+                onEdit={handleEdit}
+                />
+            )}
+            
+            {apiError && (
+                <p className="text-sm text-red-500 mt-4 text-center">{apiError}</p>
+            )}
+        </div>
+    </div>
   );
 }

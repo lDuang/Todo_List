@@ -11,4 +11,7 @@ export default defineConfig({
       "@": path.resolve(__dirname, "./src"),
     },
   },
+  server: {
+    port: process.env.PORT ? parseInt(process.env.PORT, 10) : 3000,
+  },
 })
