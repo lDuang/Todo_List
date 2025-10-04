@@ -1,17 +1,6 @@
 {
-  "name": "root",
+  "name": "todo-list-monorepo-root",
   "version": "1.0.0",
   "private": true,
-  "workspaces": [
-    "frontend",
-    "backend"
-  ],
-  "scripts": {
-    "start": "npm run dev --workspace=frontend & npm run dev --workspace=backend",
-    "dev:frontend": "npm run dev --workspace=frontend",
-    "dev:backend": "npm run dev --workspace=backend",
-    "build:frontend": "npm run build --workspace=frontend",
-    "build:backend": "npm run build --workspace=backend",
-    "db:push": "npm run db:push --workspace=backend"
-  }
+  "description": "This file is intentionally left minimal as the frontend and backend are now treated as separate projects."
 }
