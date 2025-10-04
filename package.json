@@ -1,6 +1,0 @@
-{
-  "name": "todo-list-monorepo-root",
-  "version": "1.0.0",
-  "private": true,
-  "description": "This file is intentionally left minimal as the frontend and backend are now treated as separate projects."
-}
