@@ -78,6 +78,7 @@ function Index() {
       await createTodoMutation.mutateAsync(values.title);
     } catch (err) {
       queryClient.setQueryData(['todos'], previousTodos);
+      if (err instanceof Error) setApiError(err.message);
     }
   };
 
@@ -94,6 +95,7 @@ function Index() {
       await updateTodoMutation.mutateAsync({ id, updates: { completed } });
     } catch (err) {
       queryClient.setQueryData(['todos'], previousTodos);
+      if (err instanceof Error) setApiError(err.message);
     }
   };
 
@@ -110,6 +112,7 @@ function Index() {
       await deleteTodoMutation.mutateAsync(id);
     } catch (err) {
       queryClient.setQueryData(['todos'], previousTodos);
+      if (err instanceof Error) setApiError(err.message);
     }
   };
 
