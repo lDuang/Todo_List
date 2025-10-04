@@ -14,7 +14,7 @@ interface AddTodoFormProps {
   isPending: boolean;
 }
 
-export function AddTodoForm({ onSubmit, isPending }: AddTodoFormProps) {
+export function AddTodoForm({ onSubmit }: AddTodoFormProps) {
   const form = useForm<TodoFormValues>({
     resolver: zodResolver(todoFormSchema),
     defaultValues: {
