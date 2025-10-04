@@ -21,12 +21,12 @@ app.use('*', logger());
 app.use('/api/*', cors());
 
 const createTodoSchema = z.object({
-  title: z.string().min(1, 'Title cannot be empty'),
+  title: z.string().min(1, '标题不能为空').max(64, '标题不能超过64个字符'), // 添加最大长度限制
 });
 
 // optional() 非强制的 (可选)
 const updateTodoSchema = z.object({
-  title: z.string().min(1, 'Title cannot be empty').optional(),
+  title: z.string().min(1, '标题不能为空').max(64, '标题不能超过64个字符').optional(),
   completed: z.boolean().optional(),
 });
 
@@ -44,7 +44,7 @@ app.get('/api/todos', async (c) => {
     // 获取错误消息
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     // 服务器内部错误 - 500
-    return c.json({ error: 'Failed to fetch todos', details: errorMessage }, 500);
+    return c.json({ error: '获取待办事项失败', details: errorMessage }, 500);
   }
 });
 
@@ -54,11 +54,27 @@ app.get('/api/todos', async (c) => {
 app.post('/api/todos', zValidator('json', createTodoSchema), async (c) => {
   // 从上下文中 valid 字段中 json 取出 title (指定需要的参数)
   const { title } = c.req.valid('json');
-  // 插入方法 insert(指定表) 插入数据 { title }
-  // returning 传出新插入的数据  (列表)
-  const newTodo = await db.insert(todos).values({ title }).returning();
-  // 返回 列表中第一个 ，因为我们只插入了一个数据
-  return c.json(newTodo[0], 201);
+
+  try {
+    // 检查是否有重复的标题
+    const existingTodo = await db.select().from(todos).where(eq(todos.title, title));
+    if (existingTodo.length > 0) {
+      return c.json({ error: '待办事项标题已存在', message: '待办事项标题已存在，请勿重复添加。' }, 409);
+    }
+
+    // 插入方法 insert(指定表) 插入数据 { title }
+    // returning 传出新插入的数据  (列表)
+    const newTodo = await db.insert(todos).values({ title }).returning();
+    // 返回 列表中第一个 ，因为我们只插入了一个数据
+    return c.json(newTodo[0], 201);
+  } catch (error) {
+    // 终端打印
+    console.error('Error creating todo:', error);
+    // 获取错误消息
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    // 服务器内部错误 - 500
+    return c.json({ error: '创建待办事项失败', details: errorMessage, message: '创建待办事项失败。' }, 500);
+  }
 });
 
 // 定义 PUT 请求-更改todo
@@ -72,7 +88,7 @@ app.put('/api/todos/:id', zValidator('json', updateTodoSchema), async (c) => {
   // 判断数字
   if (isNaN(id)) {
     // 如果不是数字
-    return c.json({ error: 'Invalid ID' }, 400);
+    return c.json({ error: '无效的ID' }, 400);
   }
 
   // 更新 todos 表中 todos.id == id 的数据列，将 data 作为新数据
@@ -81,7 +97,7 @@ app.put('/api/todos/:id', zValidator('json', updateTodoSchema), async (c) => {
   // 如果更新的数据长度为 0 
   if (updatedTodo.length === 0) {
     // 返回 404
-    return c.json({ error: 'Todo not found' }, 404);
+    return c.json({ error: '未找到待办事项' }, 404);
   }
 
   // 一切正常返回 returning 返回的列表中第一个
@@ -95,7 +111,7 @@ app.delete('/api/todos/:id', async (c) => {
 
   // 判断数字
   if (isNaN(id)) {
-    return c.json({ error: 'Invalid ID' }, 400);
+    return c.json({ error: '无效的ID' }, 400);
   }
 
   // 通过 eq 比对 todos.id == id 的列进行删除
@@ -103,11 +119,11 @@ app.delete('/api/todos/:id', async (c) => {
 
   // 判断删除的数据长度
   if (deletedTodo.length === 0) {
-    return c.json({ error: 'Todo not found' }, 404);
+    return c.json({ error: '未找到待办事项' }, 404);
   }
 
   // 返回删除成功.
-  return c.json({ message: 'Todo deleted successfully' });
+  return c.json({ message: '待办事项删除成功' });
 });
 
 // 定义端口 环境变量(转换10进制) 或 默认8000
