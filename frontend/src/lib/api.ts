@@ -2,6 +2,7 @@ import { z } from 'zod';
 
 const todoSchema = z.object({
   id: z.number(),
+  clientId: z.string(),
   title: z.string(),
   completed: z.boolean(),
   createdAt: z.string(),
@@ -16,22 +17,22 @@ export async function getTodos(): Promise<Todo[]> {
   if (!response.ok) {
     throw new Error('获取待办事项失败');
   }
-  const data = await response.json();
-  return z.array(todoSchema).parse(data);
+  const jsonData = await response.json();
+  return z.array(todoSchema).parse(jsonData);
 }
 
-export async function createTodo(title: string): Promise<Todo> {
+export async function createTodo(data: { title: string; clientId: string }): Promise<Todo> {
   const response = await fetch(`${API_BASE_URL}/todos`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ title }),
+    body: JSON.stringify(data),
   });
   if (!response.ok) {
     const errorData = await response.json();
     throw new Error(errorData.message || errorData.error || '创建待办事项失败');
   }
-  const data = await response.json();
-  return todoSchema.parse(data);
+  const jsonData = await response.json();
+  return todoSchema.parse(jsonData);
 }
 
 export async function updateTodo(id: number, updates: Partial<Omit<Todo, 'id' | 'createdAt'>>): Promise<Todo> {
@@ -44,8 +45,8 @@ export async function updateTodo(id: number, updates: Partial<Omit<Todo, 'id' | 
     const errorData = await response.json();
     throw new Error(errorData.message || errorData.error || '更新待办事项失败');
   }
-  const data = await response.json();
-  return todoSchema.parse(data);
+  const jsonData = await response.json();
+  return todoSchema.parse(jsonData);
 }
 
 export async function deleteTodo(id: number): Promise<void> {

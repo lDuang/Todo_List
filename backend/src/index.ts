@@ -21,7 +21,8 @@ app.use('*', logger());
 app.use('/api/*', cors());
 
 const createTodoSchema = z.object({
-  title: z.string().min(1, '标题不能为空').max(64, '标题不能超过64个字符'), // 添加最大长度限制
+  title: z.string().min(1, '标题不能为空').max(64, '标题不能超过64个字符'),
+  clientId: z.string().length(21, '无效的 Client ID'),
 });
 
 // optional() 非强制的 (可选)
@@ -52,8 +53,8 @@ app.get('/api/todos', async (c) => {
 // 中间件 zValidator 验证 createTodoSchema 规则
 // 通过后则添加valid字段到上下文中请求体，名称为 json
 app.post('/api/todos', zValidator('json', createTodoSchema), async (c) => {
-  // 从上下文中 valid 字段中 json 取出 title (指定需要的参数)
-  const { title } = c.req.valid('json');
+  // 从上下文中 valid 字段中 json 取出数据
+  const { title, clientId } = c.req.valid('json');
 
   try {
     // 检查是否有重复的标题
@@ -62,10 +63,13 @@ app.post('/api/todos', zValidator('json', createTodoSchema), async (c) => {
       return c.json({ error: '待办事项标题已存在', message: '待办事项标题已存在，请勿重复添加。' }, 409);
     }
 
-    // 插入方法 insert(指定表) 插入数据 { title }
-    // returning 传出新插入的数据  (列表)
-    const newTodo = await db.insert(todos).values({ title }).returning();
-    // 返回 列表中第一个 ，因为我们只插入了一个数据
+    // 插入数据，包括 clientId
+    const newTodo = await db
+      .insert(todos)
+      .values({ title, clientId })
+      .returning();
+
+    // 返回新创建的 todo
     return c.json(newTodo[0], 201);
   } catch (error) {
     // 终端打印
@@ -80,28 +84,57 @@ app.post('/api/todos', zValidator('json', createTodoSchema), async (c) => {
 // 定义 PUT 请求-更改todo
 //  中间件zValidator验证 updateTodoSchema 规则
 app.put('/api/todos/:id', zValidator('json', updateTodoSchema), async (c) => {
-  // 从路由参数中获取 id
   const id = Number(c.req.param('id'));
-  // 从上下文中 valid 字段中 json 取出数据
   const data = c.req.valid('json');
 
-  // 判断数字
   if (isNaN(id)) {
-    // 如果不是数字
     return c.json({ error: '无效的ID' }, 400);
   }
 
-  // 更新 todos 表中 todos.id == id 的数据列，将 data 作为新数据
-  const updatedTodo = await db.update(todos).set(data).where(eq(todos.id, id)).returning();
+  try {
+    // 如果要更新标题，检查是否与其他待办事项冲突
+    if (data.title) {
+      const existingTodo = await db
+        .select()
+        .from(todos)
+        .where(eq(todos.title, data.title));
 
-  // 如果更新的数据长度为 0 
-  if (updatedTodo.length === 0) {
-    // 返回 404
-    return c.json({ error: '未找到待办事项' }, 404);
+      // 如果找到了同名待办事项，并且它的 ID 与当前正在更新的 ID 不同
+      if (existingTodo.length > 0 && existingTodo[0].id !== id) {
+        return c.json(
+          {
+            error: '待办事项标题已存在',
+            message: '待办事项标题已存在，请使用其他标题。',
+          },
+          409
+        );
+      }
+    }
+
+    const updatedTodo = await db
+      .update(todos)
+      .set(data)
+      .where(eq(todos.id, id))
+      .returning();
+
+    if (updatedTodo.length === 0) {
+      return c.json({ error: '未找到待办事项' }, 404);
+    }
+
+    return c.json(updatedTodo[0]);
+  } catch (error) {
+    console.error('Error updating todo:', error);
+    const errorMessage =
+      error instanceof Error ? error.message : 'Unknown error';
+    return c.json(
+      {
+        error: '更新待办事项失败',
+        details: errorMessage,
+        message: '更新待办事项失败。',
+      },
+      500
+    );
   }
-
-  // 一切正常返回 returning 返回的列表中第一个
-  return c.json(updatedTodo[0]);
 });
 
 // 定义请求 DELETE

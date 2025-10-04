@@ -1,13 +1,13 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ClientTodo } from '@/routes/index';
+import { Todo } from '@/lib/api';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Pencil, Trash } from 'lucide-react';
 
 interface TodosListProps {
-  todos: ClientTodo[];
+  todos: Todo[];
   onToggleComplete: (id: number, completed: boolean) => void;
   onDelete: (id: number) => void;
   onEdit: (id: number, newTitle: string) => void;
@@ -17,7 +17,23 @@ export function TodosList({ todos, onToggleComplete, onDelete, onEdit }: TodosLi
   const [editingTodoId, setEditingTodoId] = useState<number | null>(null);
   const [editingTitle, setEditingTitle] = useState<string>('');
 
-  const handleEditClick = (todo: ClientTodo) => {
+  const containerVariants = {
+    hidden: { opacity: 1 },
+    visible: {
+      opacity: 1,
+      transition: {
+        staggerChildren: 0.07,
+      },
+    },
+  };
+
+  const itemVariants = {
+    hidden: { opacity: 0, y: -20 },
+    visible: { opacity: 1, y: 0 },
+    exit: { opacity: 0, x: -50, transition: { duration: 0.3 } },
+  };
+
+  const handleEditClick = (todo: Todo) => {
     setEditingTodoId(todo.id);
     setEditingTitle(todo.title);
   };
@@ -36,13 +52,20 @@ export function TodosList({ todos, onToggleComplete, onDelete, onEdit }: TodosLi
   };
 
   return (
-    <motion.ul layout className="space-y-3">
+    <motion.ul
+      layout
+      className="space-y-3"
+      variants={containerVariants}
+      initial="hidden"
+      animate="visible"
+    >
       <AnimatePresence>
         {todos.length === 0 ? (
           <motion.li
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -10 }}
+            variants={itemVariants}
+            initial="hidden"
+            animate="visible"
+            exit="exit"
             className="text-center text-gray-500 py-4"
           >
             暂无待办事项。
@@ -50,11 +73,10 @@ export function TodosList({ todos, onToggleComplete, onDelete, onEdit }: TodosLi
         ) : (
           todos.map((todo) => (
             <motion.li
-              key={todo.id}
-              layoutId={`todo-layout-${todo.title}`}
-              initial={{ opacity: 0, y: -20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, x: -50, transition: { duration: 0.3 } }}
+              key={todo.clientId}
+              layoutId={todo.clientId}
+              variants={itemVariants}
+              exit="exit"
               layout="position"
               className="group flex items-center justify-between p-3 bg-white rounded-lg shadow-sm border border-gray-100 hover:shadow-md transition-shadow duration-200"
             >

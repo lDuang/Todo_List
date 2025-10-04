@@ -6,9 +6,6 @@ import { TodosList } from '@/components/todos-list';
 import { AddTodoForm } from '@/components/add-todo-form';
 import { nanoid } from 'nanoid';
 
-// Create a client-side specific type that includes our stable clientId
-export type ClientTodo = Todo & { clientId: string };
-
 interface TodoFormValues {
   title: string;
 }
@@ -23,47 +20,50 @@ function Index() {
   const { data: todos, isLoading, isError, error: queryError } = useQuery({
     queryKey: ['todos'],
     queryFn: getTodos,
-    // Use the select option to transform the server data and add a clientId
-    select: (data): ClientTodo[] => data.map(todo => ({ ...todo, clientId: nanoid() })),
   });
 
-  const createTodoMutation = useMutation<Todo, Error, string, { previousTodos?: ClientTodo[] }>({
+  const createTodoMutation = useMutation<
+    Todo,
+    Error,
+    { title: string; clientId: string },
+    { previousTodos?: Todo[]; optimisticTodo?: Todo }
+  >({
     mutationFn: createTodo,
-    onMutate: async (title) => {
+    onMutate: async ({ title, clientId }) => {
       await queryClient.cancelQueries({ queryKey: ['todos'] });
-      const previousTodos = queryClient.getQueryData<ClientTodo[]>(['todos']);
+      const previousTodos = queryClient.getQueryData<Todo[]>(['todos']);
 
-      const optimisticTodo: ClientTodo = {
-        clientId: nanoid(),
-        id: Date.now(), // Still use a temp numeric ID for now, but it won't be the key
+      const optimisticTodo: Todo = {
+        clientId,
+        id: Date.now(), // Temporary ID, won't be used for mutations
         title,
         completed: false,
         createdAt: new Date().toISOString(),
       };
 
-      queryClient.setQueryData<ClientTodo[]>(['todos'], (old) => [
+      queryClient.setQueryData<Todo[]>(['todos'], (old) => [
         optimisticTodo,
         ...(old || []),
       ]);
 
-      return { previousTodos };
+      return { previousTodos, optimisticTodo };
     },
-    onSuccess: (newTodo, variables, context) => {
-      queryClient.setQueryData<ClientTodo[]>(['todos'], (old) => {
-        return old?.map((todo) => {
-          // Find the optimistic todo by its clientId and replace it with the real data from the server
-          if (context && 'optimisticTodo' in context && todo.clientId === (context.optimisticTodo as any).clientId) {
-            return { ...newTodo, clientId: (context.optimisticTodo as any).clientId };
-          }
-          return todo;
-        }) ?? [];
-      });
+    onSuccess: (newTodo, _variables, context) => {
+      queryClient.setQueryData<Todo[]>(
+        ['todos'],
+        (old) =>
+          old?.map((todo) =>
+            todo.clientId === context?.optimisticTodo?.clientId
+              ? newTodo
+              : todo
+          ) ?? []
+      );
     },
     onError: (err, variables, context) => {
       if (context?.previousTodos) {
-        queryClient.setQueryData<ClientTodo[]>(['todos'], context.previousTodos);
+        queryClient.setQueryData<Todo[]>(['todos'], context.previousTodos);
       }
-      toast.error(`创建任务 "${variables}" 失败: ${err.message}`);
+      toast.error(`创建任务 "${variables.title}" 失败: ${err.message}`);
     },
   });
 
@@ -77,9 +77,38 @@ function Index() {
     },
   };
 
-  const updateTodoMutation = useMutation({
-    mutationFn: ({ id, updates }: { id: number; updates: Partial<Todo> }) => updateTodo(id, updates),
-    ...mutationOptions,
+  const updateTodoMutation = useMutation<
+    Todo,
+    Error,
+    { id: number; updates: Partial<Todo> },
+    { previousTodos?: Todo[] }
+  >({
+    mutationFn: ({ id, updates }) => updateTodo(id, updates),
+    onMutate: async ({ id, updates }) => {
+      await queryClient.cancelQueries({ queryKey: ['todos'] });
+      const previousTodos = queryClient.getQueryData<Todo[]>(['todos']);
+      queryClient.setQueryData<Todo[]>(['todos'], (old) =>
+        old?.map((todo) =>
+          todo.id === id ? { ...todo, ...updates } : todo
+        )
+      );
+      return { previousTodos };
+    },
+    onSuccess: (newTodo) => {
+      queryClient.setQueryData<Todo[]>(['todos'], (old) =>
+        old?.map((todo) => (todo.id === newTodo.id ? newTodo : todo))
+      );
+    },
+    onError: (err, variables, context) => {
+      if (context?.previousTodos) {
+        queryClient.setQueryData<Todo[]>(['todos'], context.previousTodos);
+      }
+      const todoTitle = variables.updates.title || '';
+      toast.error(`更新任务 "${todoTitle}" 失败: ${err.message}`);
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['todos'] });
+    },
   });
 
   const deleteTodoMutation = useMutation({
@@ -88,51 +117,43 @@ function Index() {
   });
 
   const onSubmit = (values: TodoFormValues, form: any) => {
-    createTodoMutation.mutate(values.title);
+    createTodoMutation.mutate({ title: values.title, clientId: nanoid() });
     form.reset();
   };
 
   const handleToggleComplete = async (id: number, completed: boolean) => {
-    await queryClient.cancelQueries({ queryKey: ['todos'] });
-
-    const previousTodos = queryClient.getQueryData<ClientTodo[]>(['todos']);
-
-    queryClient.setQueryData<ClientTodo[]>(['todos'], (old) =>
+    const previousTodos = queryClient.getQueryData<Todo[]>(['todos']);
+    
+    // Optimistically update the UI
+    queryClient.setQueryData<Todo[]>(['todos'], (old) =>
       old?.map((todo) => (todo.id === id ? { ...todo, completed } : todo))
     );
 
     try {
       await updateTodoMutation.mutateAsync({ id, updates: { completed } });
     } catch (err) {
-      queryClient.setQueryData<ClientTodo[]>(['todos'], previousTodos);
-      const todoTitle = previousTodos?.find(t => t.id === id)?.title || '';
-      if (err instanceof Error) {
-        toast.error(`更新任务 "${todoTitle}" 失败: ${err.message}`);
-      } else {
-        toast.error(`更新任务 "${todoTitle}" 失败`);
-      }
+      // Revert on failure
+      queryClient.setQueryData<Todo[]>(['todos'], previousTodos);
+      const todoTitle = previousTodos?.find((t) => t.id === id)?.title || '';
+      toast.error(`更新任务 "${todoTitle}" 失败: ${err instanceof Error ? err.message : '未知错误'}`);
     }
   };
 
   const handleDelete = async (id: number) => {
-    await queryClient.cancelQueries({ queryKey: ['todos'] });
+    const previousTodos = queryClient.getQueryData<Todo[]>(['todos']);
 
-    const previousTodos = queryClient.getQueryData<ClientTodo[]>(['todos']);
-
-    queryClient.setQueryData<ClientTodo[]>(['todos'], (old) =>
+    // Optimistically update the UI
+    queryClient.setQueryData<Todo[]>(['todos'], (old) =>
       old?.filter((todo) => todo.id !== id)
     );
 
     try {
       await deleteTodoMutation.mutateAsync(id);
     } catch (err) {
-      queryClient.setQueryData<ClientTodo[]>(['todos'], previousTodos);
-      const todoTitle = previousTodos?.find(t => t.id === id)?.title || '';
-      if (err instanceof Error) {
-        toast.error(`删除任务 "${todoTitle}" 失败: ${err.message}`);
-      } else {
-        toast.error(`删除任务 "${todoTitle}" 失败`);
-      }
+      // Revert on failure
+      queryClient.setQueryData<Todo[]>(['todos'], previousTodos);
+      const todoTitle = previousTodos?.find((t) => t.id === id)?.title || '';
+      toast.error(`删除任务 "${todoTitle}" 失败: ${err instanceof Error ? err.message : '未知错误'}`);
     }
   };
 
