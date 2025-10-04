@@ -78,9 +78,11 @@ app.delete('/api/todos/:id', async (c) => {
   return c.json({ message: 'Todo deleted successfully' });
 });
 
+const port = process.env.PORT ? parseInt(process.env.PORT, 10) : 8000;
+
 serve({
   fetch: app.fetch,
-  port: 8000
+  port: port
 }, (info) => {
   console.log(`Server is running on http://localhost:${info.port}`);
 });
