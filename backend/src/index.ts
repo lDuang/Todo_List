@@ -12,17 +12,10 @@ import { db } from './db/index.js'; // 数据库迁移
 import { todos } from './db/schema.js'; // 数据库规范
 import { eq } from 'drizzle-orm'; // orm库
 
-// 用于检查待办事项标题是否重复的中间件
-const checkDuplicateTitle = async (c, next) => {
-  // 假设 zValidator 已经运行，并确保 c.req.valid('json') 存在且包含 title
-  const { title } = c.req.valid('json');
+const app = new Hono();  // 实例化 Hono 应用
+app.use(logger()); // 应用日志中间件
+app.use(cors());   // 应用跨域中间件
 
-  try {
-    // 查询数据库，检查是否存在相同标题的待办事项
-    const existingTodo = await db.select()
-                                 .from(todos)
-                                 .where(eq(todos.title, title))
-// 错误时返回 Title cannot be empty 
 const createTodoSchema = z.object({
   title: z.string().min(1, 'Title cannot be empty'),
 });
