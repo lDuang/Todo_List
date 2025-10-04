@@ -14,7 +14,7 @@ COPY . .
 # but if it did, it would be here. e.g., RUN npm run build
 
 # Stage 2: Create the production image
-FROM node:20-alpine
+FROM node:22-alpine
 
 WORKDIR /app
 
@@ -29,7 +29,7 @@ COPY --from=builder /app/drizzle.config.ts ./
 COPY --from=builder /app/src ./src
 
 # Expose the port the app runs on
-EXPOSE 3000
+EXPOSE 8000
 
 # Command to run the application
 CMD ["npm", "run", "start"]
