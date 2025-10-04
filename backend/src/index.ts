@@ -1,5 +1,6 @@
 import { serve } from '@hono/node-server';
 import { Hono } from 'hono';
+import { logger } from 'hono/logger';
 if (process.env.NODE_ENV !== 'production') {
   const dotenv = await import('dotenv');
   dotenv.config();
@@ -13,6 +14,7 @@ import { eq } from 'drizzle-orm';
 
 const app = new Hono();
 
+app.use('*', logger());
 app.use('/api/*', cors());
 
 // Zod schema for validation
