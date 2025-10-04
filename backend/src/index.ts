@@ -12,9 +12,13 @@ import { db } from './db/index.js'; // 数据库迁移
 import { todos } from './db/schema.js'; // 数据库规范
 import { eq } from 'drizzle-orm'; // orm库
 
-const app = new Hono();  // 实例化 Hono 应用
-app.use(logger()); // 应用日志中间件
-app.use(cors());   // 应用跨域中间件
+// 新建 hono 实例
+const app = new Hono();
+
+// 所有路由使用日志中间件
+app.use('*', logger());
+// api/ 使用跨域中间件
+app.use('/api/*', cors());
 
 const createTodoSchema = z.object({
   title: z.string().min(1, 'Title cannot be empty'),
