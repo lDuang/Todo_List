@@ -32,7 +32,6 @@ export function AddTodoForm({ onSubmit, isPending }: AddTodoFormProps) {
         {...form.register('title')}
         placeholder="添加新任务，按回车键确认"
         className="h-12 text-lg"
-        disabled={isPending}
       />
       {form.formState.errors.title && (
         <p className="text-sm text-red-500 mt-1">{form.formState.errors.title.message}</p>

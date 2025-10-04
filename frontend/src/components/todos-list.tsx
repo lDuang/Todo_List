@@ -1,13 +1,13 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Todo } from '@/lib/api';
+import { ClientTodo } from '@/routes/index';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Pencil, Trash } from 'lucide-react';
 
 interface TodosListProps {
-  todos: Todo[];
+  todos: ClientTodo[];
   onToggleComplete: (id: number, completed: boolean) => void;
   onDelete: (id: number) => void;
   onEdit: (id: number, newTitle: string) => void;
@@ -17,7 +17,7 @@ export function TodosList({ todos, onToggleComplete, onDelete, onEdit }: TodosLi
   const [editingTodoId, setEditingTodoId] = useState<number | null>(null);
   const [editingTitle, setEditingTitle] = useState<string>('');
 
-  const handleEditClick = (todo: Todo) => {
+  const handleEditClick = (todo: ClientTodo) => {
     setEditingTodoId(todo.id);
     setEditingTitle(todo.title);
   };
@@ -36,7 +36,7 @@ export function TodosList({ todos, onToggleComplete, onDelete, onEdit }: TodosLi
   };
 
   return (
-    <ul className="space-y-3">
+    <motion.ul layout className="space-y-3">
       <AnimatePresence>
         {todos.length === 0 ? (
           <motion.li
@@ -51,10 +51,11 @@ export function TodosList({ todos, onToggleComplete, onDelete, onEdit }: TodosLi
           todos.map((todo) => (
             <motion.li
               key={todo.id}
+              layoutId={`todo-layout-${todo.title}`}
               initial={{ opacity: 0, y: -20 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, x: -50, transition: { duration: 0.3 } }}
-              layout
+              layout="position"
               className="group flex items-center justify-between p-3 bg-white rounded-lg shadow-sm border border-gray-100 hover:shadow-md transition-shadow duration-200"
             >
               <div className="flex items-center gap-3">
@@ -109,6 +110,6 @@ export function TodosList({ todos, onToggleComplete, onDelete, onEdit }: TodosLi
           ))
         )}
       </AnimatePresence>
-    </ul>
+    </motion.ul>
   );
 }

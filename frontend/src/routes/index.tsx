@@ -1,9 +1,13 @@
-import { useState } from 'react';
 import { createFileRoute } from '@tanstack/react-router';
+import { toast } from 'sonner';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getTodos, createTodo, updateTodo, deleteTodo, Todo } from '@/lib/api';
 import { TodosList } from '@/components/todos-list';
 import { AddTodoForm } from '@/components/add-todo-form';
+import { nanoid } from 'nanoid';
+
+// Create a client-side specific type that includes our stable clientId
+export type ClientTodo = Todo & { clientId: string };
 
 interface TodoFormValues {
   title: string;
@@ -16,36 +20,62 @@ export const Route = createFileRoute('/')({
 function Index() {
   const queryClient = useQueryClient();
 
-  const { data: todos, isLoading, isError, error: queryError } = useQuery<Todo[]>({
+  const { data: todos, isLoading, isError, error: queryError } = useQuery({
     queryKey: ['todos'],
     queryFn: getTodos,
+    // Use the select option to transform the server data and add a clientId
+    select: (data): ClientTodo[] => data.map(todo => ({ ...todo, clientId: nanoid() })),
   });
 
-  const [apiError, setApiError] = useState<string | null>(null);
+  const createTodoMutation = useMutation<Todo, Error, string, { previousTodos?: ClientTodo[] }>({
+    mutationFn: createTodo,
+    onMutate: async (title) => {
+      await queryClient.cancelQueries({ queryKey: ['todos'] });
+      const previousTodos = queryClient.getQueryData<ClientTodo[]>(['todos']);
+
+      const optimisticTodo: ClientTodo = {
+        clientId: nanoid(),
+        id: Date.now(), // Still use a temp numeric ID for now, but it won't be the key
+        title,
+        completed: false,
+        createdAt: new Date().toISOString(),
+      };
+
+      queryClient.setQueryData<ClientTodo[]>(['todos'], (old) => [
+        optimisticTodo,
+        ...(old || []),
+      ]);
+
+      return { previousTodos };
+    },
+    onSuccess: (newTodo, variables, context) => {
+      queryClient.setQueryData<ClientTodo[]>(['todos'], (old) => {
+        return old?.map((todo) => {
+          // Find the optimistic todo by its clientId and replace it with the real data from the server
+          if (context && 'optimisticTodo' in context && todo.clientId === (context.optimisticTodo as any).clientId) {
+            return { ...newTodo, clientId: (context.optimisticTodo as any).clientId };
+          }
+          return todo;
+        }) ?? [];
+      });
+    },
+    onError: (err, variables, context) => {
+      if (context?.previousTodos) {
+        queryClient.setQueryData<ClientTodo[]>(['todos'], context.previousTodos);
+      }
+      toast.error(`创建任务 "${variables}" 失败: ${err.message}`);
+    },
+  });
 
   const mutationOptions = {
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['todos'] });
-      setApiError(null);
-    },
-    onError: async (error: unknown) => {
+    onError: (error: unknown) => {
       let errorMessage = '操作失败，请稍后重试。';
-      if (error instanceof Response) {
-        try {
-          const errorData = await error.json();
-          errorMessage = errorData.message || errorData.error || errorMessage;
-        } catch (e) {
-          // JSON parsing failed
-        }
+      if (error instanceof Error) {
+        errorMessage = error.message;
       }
-      setApiError(errorMessage);
+      toast.error(errorMessage);
     },
   };
-
-  const createTodoMutation = useMutation<Todo, Error, string>({
-    mutationFn: createTodo,
-    ...mutationOptions,
-  });
 
   const updateTodoMutation = useMutation({
     mutationFn: ({ id, updates }: { id: number; updates: Partial<Todo> }) => updateTodo(id, updates),
@@ -57,62 +87,52 @@ function Index() {
     ...mutationOptions,
   });
 
-  const onSubmit = async (values: TodoFormValues, form: any) => {
-    await queryClient.cancelQueries({ queryKey: ['todos'] });
-
-    const previousTodos = queryClient.getQueryData<Todo[]>(['todos']);
-
-    queryClient.setQueryData<Todo[]>(['todos'], (old) => [
-      ...(old || []),
-      {
-        id: Date.now(),
-        title: values.title,
-        completed: false,
-        createdAt: new Date().toISOString(),
-      },
-    ]);
-
+  const onSubmit = (values: TodoFormValues, form: any) => {
+    createTodoMutation.mutate(values.title);
     form.reset();
-
-    try {
-      await createTodoMutation.mutateAsync(values.title);
-    } catch (err) {
-      queryClient.setQueryData(['todos'], previousTodos);
-      if (err instanceof Error) setApiError(err.message);
-    }
   };
 
   const handleToggleComplete = async (id: number, completed: boolean) => {
     await queryClient.cancelQueries({ queryKey: ['todos'] });
 
-    const previousTodos = queryClient.getQueryData<Todo[]>(['todos']);
+    const previousTodos = queryClient.getQueryData<ClientTodo[]>(['todos']);
 
-    queryClient.setQueryData<Todo[]>(['todos'], (old) =>
+    queryClient.setQueryData<ClientTodo[]>(['todos'], (old) =>
       old?.map((todo) => (todo.id === id ? { ...todo, completed } : todo))
     );
 
     try {
       await updateTodoMutation.mutateAsync({ id, updates: { completed } });
     } catch (err) {
-      queryClient.setQueryData(['todos'], previousTodos);
-      if (err instanceof Error) setApiError(err.message);
+      queryClient.setQueryData<ClientTodo[]>(['todos'], previousTodos);
+      const todoTitle = previousTodos?.find(t => t.id === id)?.title || '';
+      if (err instanceof Error) {
+        toast.error(`更新任务 "${todoTitle}" 失败: ${err.message}`);
+      } else {
+        toast.error(`更新任务 "${todoTitle}" 失败`);
+      }
     }
   };
 
   const handleDelete = async (id: number) => {
     await queryClient.cancelQueries({ queryKey: ['todos'] });
 
-    const previousTodos = queryClient.getQueryData<Todo[]>(['todos']);
+    const previousTodos = queryClient.getQueryData<ClientTodo[]>(['todos']);
 
-    queryClient.setQueryData<Todo[]>(['todos'], (old) =>
+    queryClient.setQueryData<ClientTodo[]>(['todos'], (old) =>
       old?.filter((todo) => todo.id !== id)
     );
 
     try {
       await deleteTodoMutation.mutateAsync(id);
     } catch (err) {
-      queryClient.setQueryData(['todos'], previousTodos);
-      if (err instanceof Error) setApiError(err.message);
+      queryClient.setQueryData<ClientTodo[]>(['todos'], previousTodos);
+      const todoTitle = previousTodos?.find(t => t.id === id)?.title || '';
+      if (err instanceof Error) {
+        toast.error(`删除任务 "${todoTitle}" 失败: ${err.message}`);
+      } else {
+        toast.error(`删除任务 "${todoTitle}" 失败`);
+      }
     }
   };
 
@@ -140,9 +160,6 @@ function Index() {
                 />
             )}
             
-            {apiError && (
-                <p className="text-sm text-red-500 mt-4 text-center">{apiError}</p>
-            )}
         </div>
     </div>
   );
