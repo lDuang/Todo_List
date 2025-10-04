@@ -4,7 +4,7 @@ const todoSchema = z.object({
   id: z.number(),
   title: z.string(),
   completed: z.boolean(),
-  createdAt: z.string(), // Assuming ISO string from backend
+  createdAt: z.string(),
 });
 
 export type Todo = z.infer<typeof todoSchema>;

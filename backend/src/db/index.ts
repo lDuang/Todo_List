@@ -10,7 +10,7 @@ const pool = new Pool({
 
 pool.on('error', (err) => {
   console.error('Unexpected error on idle client', err);
-  process.exit(-1); // Exit process if there's an unrecoverable error
+  process.exit(-1);
 });
 
 export const db = drizzle(pool, { schema });

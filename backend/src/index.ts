@@ -17,7 +17,6 @@ const app = new Hono();
 app.use('*', logger());
 app.use('/api/*', cors());
 
-// Zod schema for validation
 const createTodoSchema = z.object({
   title: z.string().min(1, 'Title cannot be empty'),
 });
@@ -27,7 +26,6 @@ const updateTodoSchema = z.object({
   completed: z.boolean().optional(),
 });
 
-// Routes
 app.get('/api/todos', async (c) => {
   try {
     const allTodos = await db.select().from(todos);

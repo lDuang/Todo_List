@@ -30,7 +30,7 @@ function Index() {
     mutationFn: createTodo,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['todos'] });
-      form.reset(); // Reset form after successful submission
+      form.reset();
     },
   });
 
