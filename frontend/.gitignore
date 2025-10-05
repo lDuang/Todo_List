@@ -37,3 +37,4 @@ build/ # Electron-builder output directory
 
 # misc
 electron-template
+release

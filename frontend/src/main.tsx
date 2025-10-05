@@ -1,14 +1,24 @@
-import { StrictMode } from 'react';
+// import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { RouterProvider, Router } from '@tanstack/react-router';
+import {
+  RouterProvider,
+  Router,
+  createHashHistory,
+} from '@tanstack/react-router';
 import { routeTree } from './routeTree.gen';
 
 import './index.css';
 
 const queryClient = new QueryClient();
 
-const router = new Router({ routeTree, basepath: '/'});
+// Create a hash history for Electron
+const hashHistory = createHashHistory();
+
+const router = new Router({
+  routeTree,
+  history: hashHistory,
+});
 
 declare module '@tanstack/react-router' {
   interface Register {
@@ -16,10 +26,17 @@ declare module '@tanstack/react-router' {
   }
 }
 
-createRoot(document.getElementById('root')!).render(
-  <StrictMode>
-    <QueryClientProvider client={queryClient}>
-      <RouterProvider router={router} />
-    </QueryClientProvider>
-  </StrictMode>,
-);
+const rootElement = document.getElementById('root')!;
+if (!rootElement.innerHTML) {
+  const root = createRoot(rootElement);
+  root.render(
+    // <StrictMode>
+    //   <QueryClientProvider client={queryClient}>
+    //     <RouterProvider router={router} />
+    //   </QueryClientProvider>
+    // </StrictMode>
+      <QueryClientProvider client={queryClient}>
+        <RouterProvider router={router} />
+      </QueryClientProvider>
+  );
+}

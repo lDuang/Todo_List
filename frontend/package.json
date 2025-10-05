@@ -1,22 +1,39 @@
 {
-  "name": "frontend",
+  "name": "Todo_List",
   "private": true,
-  "version": "0.0.0",
+  "version": "0.0.1",
   "type": "module",
   "main": "dist/electron/main.js",
+  "homepage": "./",
+  "build": {
+    "appId": "com.example.todolist",
+    "productName": "Todo List",
+    "publish": null,
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/electron/**/*",
+      "dist/index.html",
+      "dist/assets/**/*"
+    ],
+    "win": {
+      "target": "dir"
+    }
+  },
   "scripts": {
     "dev": "vite",
     "lint": "eslint .",
-    "preview": "vite preview",
+    "preview": "vite preview --port 3000",
     "build": "tsc -b && vite build",
     "build:all": "pnpm build:vite && pnpm build:electron",
     "build:vite": "tsc -b && vite build",
-    "build:electron": "tsc -p electron/tsconfig.electron.json",
+    "build:electron": "tsc -p electron/tsconfig.electron.json && esbuild electron/preload.ts --bundle --platform=node --format=cjs --outfile=dist/electron/preload.js --external:electron",
     "start:dev": "electron dist/electron/main.js --dev",
-    "start:prod": "electron dist/electron/main.js",
+    "start:prod": "cross-env NODE_ENV=production electron dist/electron/main.js",
     "electron:dev": "concurrently \"pnpm dev\" \"wait-on tcp:3000 && pnpm build:electron && pnpm start:dev\"",
-    "electron:build": "pnpm build && electron-builder",
-    "electron": "pnpm build && pnpm start:prod"
+    "electron:build": "cross-env CSC_IDENTITY_AUTO_DISCOVERY=false pnpm build:all && electron-builder",
+    "electron": "pnpm build:all && pnpm start:prod"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.3.4",
@@ -27,7 +44,6 @@
     "@tanstack/react-router": "^1.132.33",
     "@tanstack/react-router-devtools": "^1.132.33",
     "@tanstack/router-vite-plugin": "^1.132.33",
-    "better-sqlite3": "^12.4.1",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "framer-motion": "^12.23.22",
@@ -37,6 +53,7 @@
     "react-dom": "^19.1.1",
     "react-hook-form": "^7.52.1",
     "sonner": "^2.0.7",
+    "sqlite3": "^5.1.7",
     "tailwind-merge": "^3.3.1",
     "tailwindcss-animate": "^1.0.7",
     "zod": "^3.22.4"
@@ -50,9 +67,11 @@
     "@vitejs/plugin-react": "^5.0.4",
     "autoprefixer": "^10.4.21",
     "concurrently": "^9.2.1",
+    "cross-env": "^10.1.0",
     "dotenv": "^17.2.3",
     "electron": "^38.2.1",
     "electron-builder": "^26.0.12",
+    "esbuild": "^0.25.10",
     "eslint": "^9.36.0",
     "eslint-plugin-react-hooks": "^5.2.0",
     "eslint-plugin-react-refresh": "^0.4.22",

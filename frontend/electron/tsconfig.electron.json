@@ -9,12 +9,11 @@
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,
     "strict": true,
-    "noImplicitAny": false,
     "noEmit": false,
     "lib": ["ES2022", "DOM"],
     "types": ["electron", "node"],
     "rootDir": ".",
     "outDir": "../dist/electron"
   },
-  "include": ["main.ts", "preload.js"]
+  "include": ["main.ts", "database.ts", "types.ts"]
 }

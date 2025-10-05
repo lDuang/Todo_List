@@ -1,60 +1,40 @@
-import { z } from 'zod';
+import type {
+  ElectronAPI,
+  Todo as ElectronTodo,
+  CreateTodoData as ElectronCreateTodoData,
+  UpdateTodoData as ElectronUpdateTodoData,
+} from '../../electron/types'
 
-const todoSchema = z.object({
-  id: z.number(),
-  clientId: z.string(),
-  title: z.string(),
-  completed: z.boolean(),
-  createdAt: z.string(),
-});
+// Re-export the types for the rest of the app to use under local names
+export type Todo = ElectronTodo
+export type CreateTodoData = ElectronCreateTodoData
+export type UpdateTodoData = ElectronUpdateTodoData
 
-export type Todo = z.infer<typeof todoSchema>;
-
-const API_BASE_URL = `${import.meta.env.VITE_API_BASE_URL}/api`;
-
-export async function getTodos(): Promise<Todo[]> {
-  const response = await fetch(`${API_BASE_URL}/todos`);
-  if (!response.ok) {
-    throw new Error('获取待办事项失败');
+// Since the preload script exposes the API on window, we need to declare it here
+declare global {
+  interface Window {
+    electronAPI: ElectronAPI
   }
-  const jsonData = await response.json();
-  return z.array(todoSchema).parse(jsonData);
 }
 
-export async function createTodo(data: { title: string; clientId: string }): Promise<Todo> {
-  const response = await fetch(`${API_BASE_URL}/todos`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(data),
-  });
-  if (!response.ok) {
-    const errorData = await response.json();
-    throw new Error(errorData.message || errorData.error || '创建待办事项失败');
-  }
-  const jsonData = await response.json();
-  return todoSchema.parse(jsonData);
+// Create a typed proxy for the electronAPI
+const electronAPI = window.electronAPI
+
+export function getTodos(): Promise<Todo[]> {
+  return electronAPI.getTodos()
 }
 
-export async function updateTodo(id: number, updates: Partial<Omit<Todo, 'id' | 'createdAt'>>): Promise<Todo> {
-  const response = await fetch(`${API_BASE_URL}/todos/${id}`, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(updates),
-  });
-  if (!response.ok) {
-    const errorData = await response.json();
-    throw new Error(errorData.message || errorData.error || '更新待办事项失败');
-  }
-  const jsonData = await response.json();
-  return todoSchema.parse(jsonData);
+export function createTodo(data: CreateTodoData): Promise<Todo> {
+  return electronAPI.createTodo(data)
 }
 
-export async function deleteTodo(id: number): Promise<void> {
-  const response = await fetch(`${API_BASE_URL}/todos/${id}`, {
-    method: 'DELETE',
-  });
-  if (!response.ok) {
-    const errorData = await response.json();
-    throw new Error(errorData.message || errorData.error || '删除待办事项失败');
-  }
+export function updateTodo(
+  id: number,
+  updates: UpdateTodoData,
+): Promise<Todo> {
+  return electronAPI.updateTodo(id, updates)
+}
+
+export function deleteTodo(id: number): Promise<void> {
+  return electronAPI.deleteTodo(id)
 }
