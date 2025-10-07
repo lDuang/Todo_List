@@ -20,10 +20,10 @@ export async function initializeDatabase(): Promise<void> {
     const dbPath = path.join(app.getPath('userData'), 'todos.db');
     const sqliteInstance = new sqlite3.Database(dbPath, (err) => {
       if (err) {
-        console.error('打开数据库失败', err);
+        // console.error('打开数据库失败', err);
         return reject(err);
       }
-      console.log('数据库已打开');
+      // console.log('数据库已打开');
 
       // Create a custom database object with promisified methods
       db = {
@@ -73,16 +73,18 @@ export async function initializeDatabase(): Promise<void> {
             clientId TEXT UNIQUE,
             title TEXT NOT NULL UNIQUE,
             completed INTEGER NOT NULL DEFAULT 0,
-            createdAt TEXT NOT NULL
+            createdAt TEXT NOT NULL,
+            description TEXT,
+            dueDate TEXT
           );
         `);
       })
       .then(() => {
-          console.log('待办事项表已初始化。');
+          // console.log('待办事项表已初始化。');
           resolve();
         })
         .catch((execErr) => {
-          console.error('创建待办事项表失败', execErr);
+          // console.error('创建待办事项表失败', execErr);
           reject(execErr);
         });
     });

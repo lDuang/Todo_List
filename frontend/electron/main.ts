@@ -46,6 +46,8 @@ function createWindow() {
     mainWindow.loadURL(`http://localhost:${VITE_DEV_SERVER_PORT}`);
     mainWindow.webContents.openDevTools();
   } else {
+    // Hide the menu bar in production
+    mainWindow.setMenu(null);
     // Load the index.html of the app in production
     mainWindow.loadFile(path.join(__dirname, '..', 'index.html'));
   }

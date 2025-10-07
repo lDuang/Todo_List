@@ -1,21 +1,22 @@
-import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Todo } from '@/lib/api';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Pencil, Trash } from 'lucide-react';
+import { Pencil, Trash, FileText } from 'lucide-react';
 
 interface TodosListProps {
   todos: Todo[];
   onToggleComplete: (id: number, completed: boolean) => void;
   onDelete: (id: number) => void;
-  onEdit: (id: number, newTitle: string) => void;
+  onSelectTodo: (todo: Todo) => void;
 }
 
-export function TodosList({ todos, onToggleComplete, onDelete, onEdit }: TodosListProps) {
-  const [editingTodoId, setEditingTodoId] = useState<number | null>(null);
-  const [editingTitle, setEditingTitle] = useState<string>('');
+export function TodosList({
+  todos,
+  onToggleComplete,
+  onDelete,
+  onSelectTodo,
+}: TodosListProps) {
 
   const containerVariants = {
     hidden: { opacity: 1 },
@@ -31,24 +32,6 @@ export function TodosList({ todos, onToggleComplete, onDelete, onEdit }: TodosLi
     hidden: { opacity: 0, y: -20 },
     visible: { opacity: 1, y: 0 },
     exit: { opacity: 0, x: -50, transition: { duration: 0.3 } },
-  };
-
-  const handleEditClick = (todo: Todo) => {
-    setEditingTodoId(todo.id);
-    setEditingTitle(todo.title);
-  };
-
-  const handleSaveEdit = (id: number) => {
-    if (editingTitle.trim() !== '') {
-      onEdit(id, editingTitle);
-    }
-    setEditingTodoId(null);
-    setEditingTitle('');
-  };
-
-  const handleCancelEdit = () => {
-    setEditingTodoId(null);
-    setEditingTitle('');
   };
 
   return (
@@ -80,41 +63,40 @@ export function TodosList({ todos, onToggleComplete, onDelete, onEdit }: TodosLi
               layout="position"
               className="group flex items-center justify-between p-3 bg-white rounded-lg shadow-sm border border-gray-100 hover:shadow-md transition-shadow duration-200"
             >
-              <div className="flex items-center gap-3">
+              <div
+                className="flex items-center gap-3 flex-grow cursor-pointer"
+                onClick={() => onSelectTodo(todo)}
+              >
                 <Checkbox
                   id={`todo-${todo.id}`}
                   checked={todo.completed}
-                  onCheckedChange={(checked: boolean) => onToggleComplete(todo.id, checked)}
+                  onCheckedChange={(checked: boolean) => {
+                    // Prevent modal from opening when clicking the checkbox
+                    // e.stopPropagation();
+                    onToggleComplete(todo.id, checked);
+                  }}
+                  onClick={(e) => e.stopPropagation()}
                   className="h-5 w-5"
                 />
-                {editingTodoId === todo.id ? (
-                  <Input
-                    value={editingTitle}
-                    onChange={(e) => setEditingTitle(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') handleSaveEdit(todo.id);
-                      if (e.key === 'Escape') handleCancelEdit();
-                    }}
-                    onBlur={() => handleSaveEdit(todo.id)}
-                    className="p-0 border-none focus:ring-0 bg-transparent h-auto text-base"
-                    autoFocus
-                  />
-                ) : (
-                  <label
-                    htmlFor={`todo-${todo.id}`}
-                    className={`cursor-pointer transition-colors ${
-                      todo.completed ? 'text-gray-500 line-through' : 'text-gray-800'
-                    }`}
-                  >
-                    {todo.title}
-                  </label>
+                <span
+                  className={`transition-colors ${
+                    todo.completed ? 'text-gray-500 line-through' : 'text-gray-800'
+                  }`}
+                >
+                  {todo.title}
+                </span>
+                {(todo.description || todo.dueDate) && (
+                  <FileText className="h-4 w-4 text-gray-400" />
                 )}
               </div>
               <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
                 <Button
                   variant="ghost"
                   size="icon"
-                  onClick={() => handleEditClick(todo)}
+                  onClick={(e) => {
+                    e.stopPropagation(); // Prevent the li's onClick from firing
+                    onSelectTodo(todo);
+                  }}
                   className="h-8 w-8 text-gray-400 hover:text-blue-500 hover:bg-blue-50"
                 >
                   <Pencil className="w-4 h-4" />

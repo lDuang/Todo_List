@@ -4,10 +4,12 @@ export interface Todo {
   title: string;
   completed: boolean;
   createdAt: string;
+  description?: string;
+  dueDate?: string;
 }
 
 export type CreateTodoData = Pick<Todo, 'title' | 'clientId'>;
-export type UpdateTodoData = Partial<Pick<Todo, 'title' | 'completed'>>;
+export type UpdateTodoData = Partial<Pick<Todo, 'title' | 'completed' | 'description' | 'dueDate'>>;
 
 export interface ElectronAPI {
   getTodos: () => Promise<Todo[]>;

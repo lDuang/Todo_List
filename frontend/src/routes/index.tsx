@@ -1,9 +1,11 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { toast } from 'sonner';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getTodos, createTodo, updateTodo, deleteTodo, Todo } from '@/lib/api';
+import { useState } from 'react';
+import { getTodos, createTodo, updateTodo, deleteTodo, Todo, UpdateTodoData } from '@/lib/api';
 import { TodosList } from '@/components/todos-list';
 import { AddTodoForm } from '@/components/add-todo-form';
+import { TodoDetailModal } from '@/components/todo-detail-modal';
 import { nanoid } from 'nanoid';
 
 interface TodoFormValues {
@@ -16,6 +18,7 @@ export const Route = createFileRoute('/')({
 
 function Index() {
   const queryClient = useQueryClient();
+  const [editingTodo, setEditingTodo] = useState<Todo | null>(null);
 
   const { data: todos, isLoading, isError, error: queryError } = useQuery({
     queryKey: ['todos'],
@@ -67,16 +70,6 @@ function Index() {
     },
   });
 
-  const mutationOptions = {
-    onError: (error: unknown) => {
-      let errorMessage = '操作失败，请稍后重试。';
-      if (error instanceof Error) {
-        errorMessage = error.message;
-      }
-      toast.error(errorMessage);
-    },
-  };
-
   const updateTodoMutation = useMutation<
     Todo,
     Error,
@@ -90,30 +83,46 @@ function Index() {
       queryClient.setQueryData<Todo[]>(['todos'], (old) =>
         old?.map((todo) =>
           todo.id === id ? { ...todo, ...updates } : todo
-        )
+        ) ?? []
       );
       return { previousTodos };
-    },
-    onSuccess: (newTodo) => {
-      queryClient.setQueryData<Todo[]>(['todos'], (old) =>
-        old?.map((todo) => (todo.id === newTodo.id ? newTodo : todo))
-      );
     },
     onError: (err, variables, context) => {
       if (context?.previousTodos) {
         queryClient.setQueryData<Todo[]>(['todos'], context.previousTodos);
       }
-      const todoTitle = variables.updates.title || '';
-      toast.error(`更新任务 "${todoTitle}" 失败: ${err.message}`);
+      const action = variables.updates.title ? '更新' : '切换';
+      toast.error(`${action}任务失败: ${err.message}`);
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ['todos'] });
     },
   });
 
-  const deleteTodoMutation = useMutation({
+  const deleteTodoMutation = useMutation<
+    void,
+    Error,
+    number,
+    { previousTodos?: Todo[] }
+  >({
     mutationFn: deleteTodo,
-    ...mutationOptions,
+    onMutate: async (id) => {
+      await queryClient.cancelQueries({ queryKey: ['todos'] });
+      const previousTodos = queryClient.getQueryData<Todo[]>(['todos']);
+      queryClient.setQueryData<Todo[]>(['todos'], (old) =>
+        old?.filter((todo) => todo.id !== id) ?? []
+      );
+      return { previousTodos };
+    },
+    onError: (err, _variables, context) => {
+      if (context?.previousTodos) {
+        queryClient.setQueryData<Todo[]>(['todos'], context.previousTodos);
+      }
+      toast.error(`删除任务失败: ${err.message}`);
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['todos'] });
+    },
   });
 
   const onSubmit = (values: TodoFormValues, form: any) => {
@@ -121,44 +130,25 @@ function Index() {
     form.reset();
   };
 
-  const handleToggleComplete = async (id: number, completed: boolean) => {
-    const previousTodos = queryClient.getQueryData<Todo[]>(['todos']);
-    
-    // Optimistically update the UI
-    queryClient.setQueryData<Todo[]>(['todos'], (old) =>
-      old?.map((todo) => (todo.id === id ? { ...todo, completed } : todo))
-    );
-
-    try {
-      await updateTodoMutation.mutateAsync({ id, updates: { completed } });
-    } catch (err) {
-      // Revert on failure
-      queryClient.setQueryData<Todo[]>(['todos'], previousTodos);
-      const todoTitle = previousTodos?.find((t) => t.id === id)?.title || '';
-      toast.error(`更新任务 "${todoTitle}" 失败: ${err instanceof Error ? err.message : '未知错误'}`);
-    }
+  const handleToggleComplete = (id: number, completed: boolean) => {
+    updateTodoMutation.mutate({ id, updates: { completed } });
   };
 
-  const handleDelete = async (id: number) => {
-    const previousTodos = queryClient.getQueryData<Todo[]>(['todos']);
-
-    // Optimistically update the UI
-    queryClient.setQueryData<Todo[]>(['todos'], (old) =>
-      old?.filter((todo) => todo.id !== id)
-    );
-
-    try {
-      await deleteTodoMutation.mutateAsync(id);
-    } catch (err) {
-      // Revert on failure
-      queryClient.setQueryData<Todo[]>(['todos'], previousTodos);
-      const todoTitle = previousTodos?.find((t) => t.id === id)?.title || '';
-      toast.error(`删除任务 "${todoTitle}" 失败: ${err instanceof Error ? err.message : '未知错误'}`);
-    }
+  const handleDelete = (id: number) => {
+    deleteTodoMutation.mutate(id);
   };
 
-  const handleEdit = (id: number, newTitle: string) => {
-    updateTodoMutation.mutate({ id, updates: { title: newTitle } });
+  const handleOpenEditModal = (todo: Todo) => {
+    setEditingTodo(todo);
+  };
+
+  const handleCloseEditModal = () => {
+    setEditingTodo(null);
+  };
+
+  const handleSaveEdit = (id: number, updates: UpdateTodoData) => {
+    updateTodoMutation.mutate({ id, updates });
+    handleCloseEditModal();
   };
 
   return (
@@ -177,11 +167,18 @@ function Index() {
                 todos={todos || []}
                 onToggleComplete={handleToggleComplete}
                 onDelete={handleDelete}
-                onEdit={handleEdit}
+                onSelectTodo={handleOpenEditModal}
                 />
             )}
             
         </div>
+
+        <TodoDetailModal
+          isOpen={!!editingTodo}
+          todo={editingTodo}
+          onClose={handleCloseEditModal}
+          onSave={handleSaveEdit}
+        />
     </div>
   );
 }
