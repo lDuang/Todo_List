@@ -97,15 +97,16 @@ export async function getTodos(): Promise<Todo[]> {
 }
 
 export async function createTodo(data: CreateTodoData): Promise<Todo> {
-  const { title, clientId } = data
+  const { title, clientId, dueDate } = data
   const createdAt = new Date().toISOString()
   try {
     const result: SQLite3RunResult = await db.run(
-      'INSERT INTO todos (clientId, title, completed, createdAt) VALUES (?, ?, ?, ?)',
+      'INSERT INTO todos (clientId, title, completed, createdAt, dueDate) VALUES (?, ?, ?, ?, ?)',
       clientId,
       title,
       0,
       createdAt,
+      dueDate
     )
     const newTodo = await db.get<Todo>('SELECT * FROM todos WHERE id = ?', result.lastID)
     if (!newTodo) {

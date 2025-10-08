@@ -8,7 +8,7 @@ export interface Todo {
   dueDate?: string;
 }
 
-export type CreateTodoData = Pick<Todo, 'title' | 'clientId'>;
+export type CreateTodoData = Pick<Todo, 'title' | 'clientId'> & { dueDate?: string };
 export type UpdateTodoData = Partial<Pick<Todo, 'title' | 'completed' | 'description' | 'dueDate'>>;
 
 export interface ElectronAPI {
