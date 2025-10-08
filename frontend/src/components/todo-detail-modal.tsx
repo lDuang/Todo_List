@@ -1,23 +1,18 @@
 import * as React from 'react';
-import { useForm, Controller } from 'react-hook-form';
+import { Controller, useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { format } from 'date-fns';
-import { CalendarIcon } from 'lucide-react';
-import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogDescription,
   DialogFooter,
   DialogClose,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import type { Todo, UpdateTodoData } from '../../electron/types';
 
@@ -41,6 +36,15 @@ const detailFormSchema = z.object({
 });
 
 type DetailFormValues = z.infer<typeof detailFormSchema>;
+
+const formatDueDateInput = (value: string) => {
+  const digitsOnly = value.replace(/\D/g, '').slice(0, 8);
+  const year = digitsOnly.slice(0, 4);
+  const month = digitsOnly.slice(4, 6);
+  const day = digitsOnly.slice(6, 8);
+
+  return [year, month, day].filter(Boolean).join('-');
+};
 
 interface TodoDetailModalProps {
   todo: Todo | null;
@@ -108,11 +112,22 @@ export function TodoDetailModal({ todo, isOpen, onClose, onSave }: TodoDetailMod
               />
           </div>
           <div>
-              <Input
-                id="dueDate"
-                placeholder="到期日 (YYYY-MM-DD)"
-                {...form.register('dueDate')}
-                className="p-4 text-sm focus-visible:ring-0 focus-visible:ring-offset-0"
+              <Controller
+                name="dueDate"
+                control={form.control}
+                render={({ field }) => (
+                  <Input
+                    id="dueDate"
+                    placeholder="到期日 (YYYY-MM-DD)"
+                    value={field.value ?? ''}
+                    onChange={(event) => {
+                      const formattedValue = formatDueDateInput(event.target.value);
+                      field.onChange(formattedValue);
+                    }}
+                    className="p-4 text-sm focus-visible:ring-0 focus-visible:ring-offset-0"
+                    maxLength={10}
+                  />
+                )}
               />
           </div>
           <DialogFooter>
